@@ -7,10 +7,12 @@
 #ifndef robohead_H_
 #define robohead_H_
 #include "Arduino.h"
+#include <math.h>
 //Custom includes
 #include <Servo.h>
 extern bool avgFirstRun;
-extern Servo myServo;
+//extern Servo myServo;
+extern Servo headMover;
 //end of add your includes here
 #ifdef __cplusplus
 extern "C" {
@@ -31,8 +33,8 @@ void setup();
 #define RGBGREEN 6
 #define RGBBLUE 9
 //Normal leds
-#define LEFTEAR 11
-#define RIGHTEAR 12
+#define LEDLEFT 11
+#define LEDRIGHT 12
 //Microphones pins
 #define MICLEFT A0
 #define MICRIGHT A1
@@ -41,12 +43,16 @@ void setup();
 
 /********* PROTOTYPES *********/
 //rgb.ino
-void setupRGB(int,int,int);
-void setRGBComponent(int,int);
+void setupRGB(int, int, int);
+void setRGBComponent(int, int);
 //sensors.ino
 int getDistanceSonar(void);
 int getDistanceIR(void);
 int* micAveraging(void);
-
+void computeMicDifference(void);
+//output.ino
+void triggerSound(int);
+//utils.ino
+int multiMap(int,int*,int*,uint8_t);
 //Do not add code below this line
 #endif /* robohead_H_ */

@@ -1,49 +1,107 @@
 #include "robohead.h"
 
-//get the distance (cm) from a SRF05
-int getDistanceSonar(){
-  digitalWrite(TRIGPIN, LOW);                   // Set the trigger pin to low for 2uS
-  delayMicroseconds(2);
-  digitalWrite(TRIGPIN, HIGH);                  // Send a 10uS high to trigger ranging
-  delayMicroseconds(10);
-  digitalWrite(TRIGPIN, LOW);                   // Send pin low again
-  int pulse = pulseIn(ECHOPIN, HIGH);        // Read in times pulse
-   return (pulse/58);
+/*
+ * Read a microphone - value is zero-level set
+ */
+int readMic(int pin){
+	return abs((analogRead(pin) - 511));
+}
+/*
+ * Get distance (cm) from a SRF05 -- http://www.robot-electronics.co.uk/htm/arduino_examples.htm
+ */
+int getDistanceSonar() {
+	digitalWrite(TRIGPIN, LOW); // Set the trigger pin to low for 2uS
+	delayMicroseconds(2);
+	digitalWrite(TRIGPIN, HIGH); // Send a 10uS high to trigger ranging
+	delayMicroseconds(10);
+	digitalWrite(TRIGPIN, LOW); // Send pin low again
+	int pulse = pulseIn(ECHOPIN, HIGH); // Read in times pulse
+	return (pulse / 58);
+}
+/*
+ * Get distance from a Sharp 2D120X IR Ranger
+ */
+int getDistanceIR() {
+	return 0;
 }
 
-int getDistanceIR() {
-return 0;
-}
-//calculates the moving average of the microphone 0L 1R
-int micStore[2]; int thisValue; int toStore[2]; int movAvg[2]; int sampleCount, ij; int lastValue[2], firstValue[2];
+/*
+ * Calculate the moving average of the microphone 0L 1R
+ */
+long micStore[2];
+//int thisValue;
+int toStore[2];
+int movAvg[2];
+int sampleCount, ij;
+int lastValue[2], firstValue[2];
 int* micAveraging() {
 	if (avgFirstRun) {
-		micStore[0]=micStore[1]=0;
-		firstValue[0] = log(pow((analogRead(MICLEFT)-512),2));
-		firstValue[1] = log(pow((analogRead(MICRIGHT)-512),2));
-	//get the first 300 samples
-	 for(ij=0; ij<300; ij++){
-			//thisValue = analogRead(MICLEFT);
-			micStore[0] += log(pow((analogRead(MICLEFT)-512),2));
-			micStore[1] += log(pow((analogRead(MICRIGHT)-512),2));
-			delayMicroseconds(15);
+		micStore[0] = micStore[1] = 0;
+		//get the first 300 samples
+		for (ij = 0; ij < 150; ij++) {
+			Serial.println("FIRST RUN");
+			micStore[0] += readMic(MICLEFT);
+			micStore[1] += readMic(MICRIGHT);
+            //wait some time
+			delayMicroseconds(5);
 		}
-	 avgFirstRun = false;
+		avgFirstRun = false;
 	}
-    lastValue[0] = log(pow((analogRead(MICLEFT)-512),2));
-    lastValue[1] = log(pow((analogRead(MICRIGHT)-512),2));
-    //calculate the average
-	toStore[0] =  log(pow((analogRead(MICLEFT)-512),2));
-	toStore[1] =  log(pow((analogRead(MICRIGHT)-512),2));
+	//stores
+	micStore[0] += readMic(MICLEFT);
+	micStore[1] += readMic(MICRIGHT);
+    //rude approximation
+	micStore[0] -= micStore[0]/150;
+	micStore[1] -= micStore[1]/150;
+    //ready to be sent back
+	movAvg[0] = micStore[0] / 150;
+	movAvg[1] = micStore[1] / 150;
+    //return the array
+	return movAvg;
+}
+/*
+ * Detect loud sounds and pull a trigger
+ */
+int *micBuffer;
+float iRep[2];
+long smS[2] = { 0, 0 };
+int c;
+void computeMicDifference() {
+	//call the mobileaveraging function
+	micBuffer = micAveraging();
+	//set the ratios
+	for (c = 0; c < 15; c++) {
+		smS[0] += readMic(MICLEFT);
+		smS[1] += readMic(MICRIGHT);
+	}
+	iRep[0] = (smS[0] / 15) / micBuffer[0];
+	iRep[1] = (smS[1] / 15) / micBuffer[1];
 
-	//stores the average
-	movAvg[0] = micStore[0] /302; 	movAvg[1] = micStore[1] /302;
+	 /*Serial.print(smS[0]/15);
+	 Serial.println();
+	 Serial.print("   ");
+	 Serial.print(smS[1]/30);
+	 Serial.print("  AND  ");
+	 Serial.print(micBuffer[0]);
+	 Serial.print("   ");
+	 Serial.print(micBuffer[1]);
+	 Serial.print("  AND  ");
+	 Serial.print(iRep[0]);
+	 Serial.print("   ");
+	 Serial.print(iRep[1]);
+	 Serial.println();*/
 
-	//rude approximation
-	micStore[0] += toStore[0] - movAvg[0]; 	micStore[1] += toStore[1] - movAvg[1];
+	smS[0] = 0;
+	smS[1] = 0;
+	if ((iRep[0] - iRep[1]) > 2) {
+		triggerSound(0);
+		Serial.println("************************GIRO SX");
+		delay(500);
 
-	//stores the average
-	//movAvg[0] = micStore[0] /302; 	movAvg[1] = micStore[1] /302;
+	} else if ((iRep[1] - iRep[0]) > 2) {
+		triggerSound(1);
+		Serial.println("************************GIRO DX");
+		delay(500);
 
-    return movAvg;
+	}
 }
